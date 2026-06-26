@@ -37,10 +37,10 @@ jobs:
 
     - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی)
       run: |
-        # استفاده از پارامتر صحیح -m به جای --model-base
+        # استفاده از -f برای مشخص کردن فایل دیتاست
         ./llama-finetune \
           -m base_model.gguf \
-          --train-data psychology_fa.txt \
+          -f psychology_fa.txt \
           --lora-out lora-psychology-fa.bin \
           -c 4096 \
           -t $(nproc) \
