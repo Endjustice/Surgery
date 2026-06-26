@@ -18,15 +18,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential git cmake libcurl4-openssl-dev
 
-    - name: Clone Stable llama.cpp (Golden Version)
+    - name: Clone llama.cpp.tinyllm (with llama-finetune)
       run: |
-        git clone https://github.com/ggerganov/llama.cpp.git
-        cd llama.cpp
-        git checkout b2684
+        git clone https://github.com/wdndev/llama.cpp.tinyllm.git
+        cd llama.cpp.tinyllm
         cmake -B build
-        cmake --build build --config Release --target finetune --target quantize
-        cp build/bin/finetune ../llama-finetune
-        cp build/bin/quantize ../llama-quantize
+        cmake --build build --config Release --target llama-finetune --target llama-quantize
+        cp build/bin/llama-finetune ../llama-finetune
+        cp build/bin/llama-quantize ../llama-quantize
         cd ..
 
     - name: Prepare Surgical Instruments (Download Base Model & Dataset)
@@ -38,15 +37,16 @@ jobs:
     - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی)
       run: |
         ./llama-finetune \
-          --model base_model.gguf \
+          --model-base base_model.gguf \
           --train-data psychology_fa.txt \
           --lora-out lora-psychology-fa.bin \
           --threads $(nproc) \
+          --adam-iter 30 \
+          --batch 4 \
           --ctx 4096 \
-          --epochs 3 \
-          --learning-rate 0.0001
+          --epochs 3
 
-    - name: Operation Stage 2 - Quantization & Merge (ادغام و فشرده‌سازی)
+    - name: Operation Stage 2 - Quantization & Stitching
       run: |
         ./llama-quantize \
           --lora lora-psychology-fa.bin \
