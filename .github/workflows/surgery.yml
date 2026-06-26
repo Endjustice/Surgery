@@ -44,12 +44,13 @@ jobs:
       run: |
         ./llama-finetune \
           --model base_model.gguf \
-          --train-data psychology_fa.txt \
+          --train-file psychology_fa.txt \
           --lora-out lora-psychology-fa.bin \
           --ctx 4096 \
           --threads $(nproc) \
           --adam-alpha 0.0001 \
           --epochs 3
+          
           
 
     - name: Operation Stage 2 - Quantization & Stitching (بخیه زدن و فشرده‌سازی)
