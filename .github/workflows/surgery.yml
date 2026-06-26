@@ -3,7 +3,7 @@ name: Model Surgery (Phi-4-Mini Fine-Tuning)
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # بهت اجازه میده دستی هم از توی گیت‌هاب دکمه Run رو بزنی
+  workflow_dispatch:
 
 jobs:
   brain-surgery:
@@ -23,51 +23,42 @@ jobs:
         git clone https://github.com/ggerganov/llama.cpp.git
         cd llama.cpp
         cmake -B build -DGGML_CURL=ON
-        cmake --build build --config Release --target llama-finetune --target llama-quantize
-        # انتقال ابزارهای جراحی به پوشه اصلی برای دسترسی راحت‌تر
+        # ساخت ابزارهای مورد نیاز
+        cmake --build build --config Release --target llama-finetune --target llama-quantize --target llama-cli
         cp build/bin/llama-finetune ../
         cp build/bin/llama-quantize ../
+        cp build/bin/llama-cli ../
         cd ..
 
     - name: Prepare Surgical Instruments (Download Base Model & Dataset)
       run: |
-        # دانلود نسخه خام و با کیفیت بالا (ترجیحاً F16 یا Q8 برای جراحی دقیق‌تر)
-        # نکته: لینک زیر یک مثال است، مطمئن شو لینک مستقیم فایل درست باشد
         curl -L -o base_model.gguf "https://huggingface.co/mradermacher/Phi-4-Mini-Abliterated-i1-GGUF/resolve/main/Phi-4-Mini-Abliterated.i1-Q6_K.gguf"
-        
-        # در اینجا فرض می‌کنیم فایل دیتاست روانشناسی تو با نام psychology_fa.txt توی مخزن گیت‌هابت هست.
-        # اگر نبود، می‌تونی اینجا با curl یا wget از یه جا دانلودش کنی.
         echo "بررسی وجود دیتاست..."
         ls -l psychology_fa.txt || (echo "خطا: فایل psychology_fa.txt یافت نشد!" && exit 1)
 
     - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی)
       run: |
+        # استفاده از دستور صحیح llama-finetune
         ./llama-finetune \
-          --model base_model.gguf \
+          --model-base base_model.gguf \
           --train-data psychology_fa.txt \
           --lora-out lora-psychology-fa.bin \
           --ctx 4096 \
           --threads $(nproc) \
           --adam-alpha 0.0001 \
           --epochs 3
-          
-          
-          
 
-    - name: Operation Stage 2 - Quantization & Stitching (بخیه زدن و فشرده‌سازی)
+    - name: Operation Stage 2 - Quantization (فشرده‌سازی مدل پایه)
       run: |
-        # در لاما سی‌پی‌پی جدید، می‌تونی لورا رو موقع کوانتایز یا ریز-تنظیم نهایی اعمال کنی
-        # برای سادگی کار، مدل پایه رو دوباره به فرمت نهایی همراه با وزن‌های لورا هدایت می‌کنیم
-        ./llama-quantize \
-          --lora lora-psychology-fa.bin \
-          base_model.gguf \
-          Phi-4-Mini-Persian-Psychology.i1-Q6_K.gguf \
-          i1-Q6_K
+        # فشرده‌سازی مدل پایه برای استفاده نهایی (اختیاری ولی مفید)
+        ./llama-quantize base_model.gguf base_model-Q6_K.gguf Q6_K
 
-    - name: Save Patient (Upload jarrāhi شده Model as Artifact)
+    - name: Save Patient (Upload both Base Model and the New Adapter)
       uses: actions/upload-artifact@v4
       with:
         name: Persian-Psychology-Phi-4-Model
-        path: Phi-4-Mini-Persian-Psychology.i1-Q6_K.gguf
-        compression-level: 0 # چون خودش فشرده هست زمان رو هدر نده
-        
+        # آپلود هر دو فایل: مدل پایه و آداپتور جدید
+        path: |
+          base_model-Q6_K.gguf
+          lora-psychology-fa.bin
+        compression-level: 0
