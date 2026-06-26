@@ -35,27 +35,32 @@ jobs:
         echo "بررسی وجود دیتاست..."
         ls -l psychology_fa.txt || (echo "خطا: فایل psychology_fa.txt یافت نشد!" && exit 1)
 
-    - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی)
+    - name: Operation Stage 1 - Fine-Tuning (تزریق مستقیم منطق فارسی)
       run: |
-        # استفاده از -f برای مشخص کردن فایل دیتاست
+        # بر اساس هلپ ارسالی شما:
+        # -m مدل پایه را باز می‌کند
+        # -f فایل دیتاست کوچه بازاری را تحویل می‌گیرد
+        # -t از تمام هسته‌های پردازنده گیت‌هاب استفاده می‌کند
+        # --learning-rate نرخ یادگیری بهینه شده
+        # --epochs تعداد دورهای جراحی
         ./llama-finetune \
           -m base_model.gguf \
           -f psychology_fa.txt \
-          --lora-out lora-psychology-fa.bin \
           -c 4096 \
           -t $(nproc) \
           --learning-rate 0.0001 \
           --epochs 3
 
-    - name: Operation Stage 2 - Quantization (فشرده‌سازی مدل پایه)
+    - name: Operation Stage 2 - Quantization (فشرده‌سازی و فیکس کردن مدل جراحی شده)
       run: |
-        ./llama-quantize base_model.gguf base_model-Q6_K.gguf Q6_K
+        # چون فرآیند بالا مستقیماً وزن‌های خود base_model.gguf را تغییر می‌دهد،
+        # حالا همین فایل تغییر یافته را دوباره برای خروجی نهایی فشرده می‌کنیم.
+        ./llama-quantize base_model.gguf Phi-4-Mini-Persian-619.gguf Q6_K
 
-    - name: Save Patient (Upload both Base Model and the New Adapter)
+    - name: Save Patient (Upload the New Fine-Tuned Model)
       uses: actions/upload-artifact@v4
       with:
         name: Persian-Psychology-Phi-4-Model
-        path: |
-          base_model-Q6_K.gguf
-          lora-psychology-fa.bin
+        path: Phi-4-Mini-Persian-619.gguf
         compression-level: 0
+        
