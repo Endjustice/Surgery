@@ -18,13 +18,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential git cmake libcurl4-openssl-dev
 
-    - name: Clone and Build Stable llama.cpp
+    - name: Clone Stable llama.cpp (Golden Version)
       run: |
-        # بازگشت به نسخه طلایی و ۱۰۰٪ پایدار لاما که ابزار تمرین بهینه دارد
         git clone https://github.com/ggerganov/llama.cpp.git
         cd llama.cpp
-        git checkout b2700
-        cmake -B build -DGGML_CURL=ON
+        git checkout b2684
+        cmake -B build
         cmake --build build --config Release --target finetune --target quantize
         cp build/bin/finetune ../llama-finetune
         cp build/bin/quantize ../llama-quantize
@@ -36,22 +35,24 @@ jobs:
         echo "بررسی وجود دیتاست..."
         ls -l psychology_fa.txt || (echo "خطا: فایل psychology_fa.txt یافت نشد!" && exit 1)
 
-    - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی بدون باگ رم)
+    - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی)
       run: |
-        # استفاده از ابزار کلاسیک لاما که با مدیریت رم عالی روی گیت‌هاب کرش نمی‌کند
         ./llama-finetune \
-          --model-base base_model.gguf \
+          --model base_model.gguf \
           --train-data psychology_fa.txt \
-          --lora-out lora-adapter.bin \
-          -c 4096 \
-          -t $(nproc) \
-          --learning-rate 0.0001 \
-          --epochs 3
+          --lora-out lora-psychology-fa.bin \
+          --threads $(nproc) \
+          --ctx 4096 \
+          --epochs 3 \
+          --learning-rate 0.0001
 
-    - name: Operation Stage 2 - Stitching & Quantization (ادغام آداپتور و فشرده‌سازی)
+    - name: Operation Stage 2 - Quantization & Merge (ادغام و فشرده‌سازی)
       run: |
-        # در این نسخه کوانتایزر قدیمی می‌تواند مستقیماً آداپتور لورا را درون مدل پایه ادغام (Merge) کند
-        ./llama-quantize --lora lora-adapter.bin base_model.gguf Phi-4-Mini-Persian-619.gguf Q6_K
+        ./llama-quantize \
+          --lora lora-psychology-fa.bin \
+          base_model.gguf \
+          Phi-4-Mini-Persian-619.gguf \
+          Q6_K
 
     - name: Save Patient (Upload the New Fine-Tuned Model)
       uses: actions/upload-artifact@v4
@@ -59,4 +60,3 @@ jobs:
         name: Persian-Psychology-Phi-4-Model
         path: Phi-4-Mini-Persian-619.gguf
         compression-level: 0
-        
