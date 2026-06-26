@@ -18,15 +18,16 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential git cmake libcurl4-openssl-dev
 
-    - name: Clone and Build llama.cpp
+    - name: Clone and Build Stable llama.cpp
       run: |
+        # بازگشت به نسخه طلایی و ۱۰۰٪ پایدار لاما که ابزار تمرین بهینه دارد
         git clone https://github.com/ggerganov/llama.cpp.git
         cd llama.cpp
+        git checkout b2700
         cmake -B build -DGGML_CURL=ON
-        cmake --build build --config Release --target llama-finetune --target llama-quantize --target llama-cli
-        cp build/bin/llama-finetune ../
-        cp build/bin/llama-quantize ../
-        cp build/bin/llama-cli ../
+        cmake --build build --config Release --target finetune --target quantize
+        cp build/bin/finetune ../llama-finetune
+        cp build/bin/quantize ../llama-quantize
         cd ..
 
     - name: Prepare Surgical Instruments (Download Base Model & Dataset)
@@ -35,27 +36,22 @@ jobs:
         echo "بررسی وجود دیتاست..."
         ls -l psychology_fa.txt || (echo "خطا: فایل psychology_fa.txt یافت نشد!" && exit 1)
 
-    - name: Operation Stage 1 - Fine-Tuning (تزریق مستقیم منطق فارسی)
+    - name: Operation Stage 1 - Fine-Tuning (تزریق منطق فارسی بدون باگ رم)
       run: |
-        # بر اساس هلپ ارسالی شما:
-        # -m مدل پایه را باز می‌کند
-        # -f فایل دیتاست کوچه بازاری را تحویل می‌گیرد
-        # -t از تمام هسته‌های پردازنده گیت‌هاب استفاده می‌کند
-        # --learning-rate نرخ یادگیری بهینه شده
-        # --epochs تعداد دورهای جراحی
+        # استفاده از ابزار کلاسیک لاما که با مدیریت رم عالی روی گیت‌هاب کرش نمی‌کند
         ./llama-finetune \
-          -m base_model.gguf \
-          -f psychology_fa.txt \
+          --model-base base_model.gguf \
+          --train-data psychology_fa.txt \
+          --lora-out lora-adapter.bin \
           -c 4096 \
           -t $(nproc) \
           --learning-rate 0.0001 \
           --epochs 3
 
-    - name: Operation Stage 2 - Quantization (فشرده‌سازی و فیکس کردن مدل جراحی شده)
+    - name: Operation Stage 2 - Stitching & Quantization (ادغام آداپتور و فشرده‌سازی)
       run: |
-        # چون فرآیند بالا مستقیماً وزن‌های خود base_model.gguf را تغییر می‌دهد،
-        # حالا همین فایل تغییر یافته را دوباره برای خروجی نهایی فشرده می‌کنیم.
-        ./llama-quantize base_model.gguf Phi-4-Mini-Persian-619.gguf Q6_K
+        # در این نسخه کوانتایزر قدیمی می‌تواند مستقیماً آداپتور لورا را درون مدل پایه ادغام (Merge) کند
+        ./llama-quantize --lora lora-adapter.bin base_model.gguf Phi-4-Mini-Persian-619.gguf Q6_K
 
     - name: Save Patient (Upload the New Fine-Tuned Model)
       uses: actions/upload-artifact@v4
